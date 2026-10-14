@@ -1,0 +1,96 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #666666;
+  --line: #dddddd;
+  --accent: #c0392b;
+  --error-bg: #fdecea;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --fg: #eeeeee;
+    --muted: #9a9a9a;
+    --line: #333333;
+    --accent: #ff6b5b;
+    --error-bg: #3a1d1a;
+  }
+  /* VexFlow draws in black; invert the score for dark mode. */
+  .score svg { filter: invert(1); }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+header h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+#counter { color: var(--muted); }
+
+header button {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+header button:disabled { opacity: 0.3; }
+
+main { padding: 0 16px 48px; }
+
+section.item {
+  padding: 16px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+section.item h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+section.item h2 .category {
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+section.item p.intent {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.score { width: 100%; overflow: hidden; }
+
+.score.error {
+  padding: 12px;
+  background: var(--error-bg);
+  color: var(--accent);
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+}
