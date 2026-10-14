@@ -33,6 +33,7 @@
   const STAVE_TOP = 50; // VexFlow adds 4 lines of space above the staff, so line 0 sits at +40.
   const HANDS_OFFSET = 62;
   const FEET_OFFSET = 70;
+  const REPEAT_LABEL_WIDTH = 34; // room right of the bar for "×4"
   const ABOVE = VF.Modifier.Position.ABOVE;
   const BELOW = VF.Modifier.Position.BELOW;
 
@@ -203,19 +204,27 @@
     item.bars.forEach((bar, i) => {
       const col = i % barsPerRow;
       const row = Math.floor(i / barsPerRow);
-      const stave = new VF.Stave(col * barWidth, row * ROW_HEIGHT + STAVE_TOP, barWidth - 1);
+      const labelSpace = item.repeatEach ? REPEAT_LABEL_WIDTH : 0;
+      const stave = new VF.Stave(col * barWidth, row * ROW_HEIGHT + STAVE_TOP, barWidth - 1 - labelSpace);
       if (col === 0) stave.addClef('percussion');
       if (i === 0) stave.addTimeSignature('4/4');
-      if (item.repeat && i === 0) stave.setBegBarType(VF.Barline.type.REPEAT_BEGIN);
-      if (item.repeat && i === item.bars.length - 1) stave.setEndBarType(VF.Barline.type.REPEAT_END);
+      if ((item.repeat && i === 0) || item.repeatEach) stave.setBegBarType(VF.Barline.type.REPEAT_BEGIN);
+      if ((item.repeat && i === item.bars.length - 1) || item.repeatEach) stave.setEndBarType(VF.Barline.type.REPEAT_END);
       stave.setContext(ctx).draw();
       drawBar(ctx, stave, bar);
+      if (item.repeatEach) {
+        const label = `×${item.times || 4}`;
+        ctx.save();
+        ctx.setFont('Arial', 14, 'bold');
+        ctx.fillText(label, stave.getX() + stave.getWidth() + 5, stave.getYForLine(2) + 5);
+        ctx.restore();
+      }
     });
   }
 
   // --- App shell -----------------------------------------------------------
 
-  const routines = window.ROUTINES || [];
+  const routines = window.DrumExpand.expandAll(window.ROUTINE_SPECS || []).concat(window.TEST_ROUTINES || []);
   const els = {
     title: document.getElementById('routine-title'),
     counter: document.getElementById('counter'),
@@ -252,6 +261,7 @@
       els.items.appendChild(section);
 
       try {
+        if (item.error) throw new Error(`展開エラー: ${item.error}`);
         renderItem(item, score);
       } catch (err) {
         console.error(item.title, err);

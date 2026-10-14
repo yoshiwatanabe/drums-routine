@@ -1,140 +1,145 @@
-// Rendering-verification routines (PRD §11-1). Grid notation is described in app.js.
-window.ROUTINES = [
+// Practice routines as templates (PRD D2). Each item names a generator in
+// expand.js (`use`) and its parameters. Cells: Q E S ES SE D T R, or a raw grid.
+window.ROUTINE_SPECS = [
   {
-    title: '描画検証 1: 基本・休符・付点・オープン',
+    title: '基礎: 4分 → 8分 → 16分',
     items: [
       {
-        category: 'drill',
-        title: 'SE を4回 (スネア)',
-        intent: '16分-16分-8分。手のスティッキングを譜面の上に表示',
-        repeat: true,
-        bars: [
-          { sd: ['xxx.', 'xxx.', 'xxx.', 'xxx.'], hands: ['RLR.', 'LRL.', 'RLR.', 'LRL.'] },
-        ],
+        use: 'progression', category: 'drill', lane: 'sd', from: 'Q', to: 'E', sticking: 'alternate',
+        title: 'Q → E (スネア)',
+        intent: '4分の中に8分を1拍ずつ入れる。新しい遷移か新しい拍位置が出る小節だけを残している',
       },
       {
-        category: 'groove',
-        title: '8ビート + 付点8分/休符のキック',
-        intent: '1拍目キック = 付点8分+16分 (x..x)、3拍目 = 16-16-休-16 (xx.x)',
-        bars: [
-          {
-            hh: ['x.x.', 'x.x.', 'x.x.', 'x.x.'],
-            sd: ['....', 'x...', '....', 'x...'],
-            bd: ['x..x', '....', 'xx.x', '....'],
-          },
-        ],
+        use: 'progression', category: 'drill', lane: 'sd', from: 'E', to: 'S', sticking: 'alternate',
+        title: 'E → S (スネア)',
+        intent: '8分の中に16分を入れる。16分の入りと抜けでテンポが揺れないように',
       },
       {
-        category: 'groove',
-        title: 'ハイハットのオープン + 表拍アクセント',
-        intent: '4拍目ウラでオープン (o)。表拍のハイハットにアクセント',
-        bars: [
-          {
-            hh: ['X.x.', 'X.x.', 'X.x.', 'X.o.'],
-            sd: ['....', 'x...', '....', 'x...'],
-            bd: ['x...', '....', 'x.x.', '....'],
-          },
-        ],
-      },
-      {
-        category: 'groove',
-        title: 'ゴーストノート入り',
-        intent: 'スネアのゴースト (g) を括弧付きで表示',
-        bars: [
-          {
-            hh: ['x.x.', 'x.x.', 'x.x.', 'x.x.'],
-            sd: ['...g', 'x..g', '.g..', 'x...'],
-            bd: ['x...', '..x.', 'x...', '....'],
-          },
-        ],
+        use: 'progression', category: 'groove', lane: 'bd', groove: '8beat', from: 'Q', to: 'E',
+        title: '8ビートでキックの8分を増やす',
+        intent: '手は8ビートのまま、キックだけ4分 → 8分へ',
       },
     ],
   },
   {
-    title: '描画検証 2: アクセント・スティッキング',
+    title: 'フィル: SE / ES',
     items: [
       {
-        category: 'accent',
-        title: '反復型アクセント (1つ目 → 2つ目)',
-        intent: '1小節目は各拍の頭、2小節目は各拍の2つ目',
-        repeat: true,
-        bars: [
-          { sd: ['Xxxx', 'Xxxx', 'Xxxx', 'Xxxx'], hands: ['RLRL', 'RLRL', 'RLRL', 'RLRL'] },
-          { sd: ['xXxx', 'xXxx', 'xXxx', 'xXxx'], hands: ['RLRL', 'RLRL', 'RLRL', 'RLRL'] },
-        ],
+        use: 'progression', category: 'drill', lane: 'sd', from: 'E', to: 'SE', sticking: 'alternate',
+        title: 'E → SE (スネア)',
+        intent: 'ドリル。8分の流れの中で SE (16-16-8) を出し入れする',
       },
       {
-        category: 'accent',
+        use: 'fill', category: 'fill', groove: '8beat', cells: 'SE', beats: 1,
+        title: '8ビート + 4拍目 SE フィル',
+        intent: '3小節グルーヴ → 4小節目の4拍目だけフィル → 1拍目クラッシュで戻る',
+      },
+      {
+        use: 'fill', category: 'fill', groove: '8beat', cells: 'SE', beats: 2,
+        title: '8ビート + 3・4拍目 SE フィル',
+        intent: 'フィルを2拍に伸ばす。フィル前で溜めない',
+      },
+      {
+        use: 'fill', category: 'fill', groove: '8beat', cells: 'SE', beats: 4, around: true,
+        title: '8ビート + 1小節 SE タム回し',
+        intent: 'スネア → タム1 → タム2 → フロアタム',
+      },
+      {
+        use: 'fill', category: 'fill', groove: '8beat', cells: 'ES', beats: 4, around: true,
+        title: '8ビート + 1小節 ES タム回し',
+        intent: 'ES (8-16-16) で回す。拍の頭が8分になるので SE と感覚が違う',
+      },
+    ],
+  },
+  {
+    title: 'アクセント',
+    items: [
+      {
+        use: 'accents', category: 'accent', count: 1,
+        title: '1拍にアクセント1つ (4通り)',
+        intent: 'RLRL のまま、アクセントの位置だけ動かす',
+      },
+      {
+        use: 'accents', category: 'accent', count: 2,
+        title: '1拍にアクセント2つ (6通り)',
+        intent: '同じ手に連続するアクセントと、左右に分かれるアクセントの違いを感じる',
+      },
+      {
+        use: 'accents', category: 'accent', count: 3,
+        title: '1拍にアクセント3つ (4通り)',
+        intent: 'ノンアクセントの1打を小さく保つ',
+      },
+      {
+        use: 'literal', category: 'accent', repeat: true,
         title: '3つ区切り (3+3+3+3+4)',
-        intent: '16分のアクセントが3つおきに来て、拍の頭からずれていく',
-        repeat: true,
-        bars: [
-          { sd: ['XxxX', 'xxXx', 'xXxx', 'Xxxx'], hands: ['RLRL', 'RLRL', 'RLRL', 'RLRL'] },
-        ],
+        intent: 'アクセントが3つおきに来て、拍の頭からずれていく',
+        bars: [{ sd: ['XxxX', 'xxXx', 'xXxx', 'Xxxx'], hands: ['RLRL', 'RLRL', 'RLRL', 'RLRL'] }],
       },
       {
-        category: 'sticking',
-        title: 'パラディドル (スネア)',
-        intent: 'RLRR LRLL。各グループの頭にアクセント',
-        repeat: true,
-        bars: [
-          { sd: ['Xxxx', 'Xxxx', 'Xxxx', 'Xxxx'], hands: ['RLRR', 'LRLL', 'RLRR', 'LRLL'] },
-        ],
-      },
-      {
-        category: 'sticking',
-        title: 'パラディドル × バスドラ',
-        intent: 'ダブルの部分をキックに置き換え。足のスティッキングは譜面の下',
-        repeat: true,
-        bars: [
-          {
-            sd: ['xx..', 'xx..', 'xx..', 'xx..'],
-            bd: ['..xx', '..xx', '..xx', '..xx'],
-            hands: ['RL..', 'LR..', 'RL..', 'LR..'],
-            feet: ['..RL', '..RL', '..RL', '..RL'],
-          },
-        ],
+        use: 'literal', category: 'accent', repeat: true,
+        title: '3-3-2',
+        intent: '2拍ごとに 3+3+2。ポップスのキメでよく出る形',
+        bars: [{ sd: ['XxxX', 'xxXx', 'XxxX', 'xxXx'], hands: ['RLRL', 'RLRL', 'RLRL', 'RLRL'] }],
       },
     ],
   },
   {
-    title: '描画検証 3: 3連',
+    title: 'パラディドル展開',
     items: [
       {
-        category: 'groove',
-        title: '4拍目だけキックが3連 (L1)',
-        intent: '8ビートの中で、キックだけ1拍分3連になる',
-        bars: [
-          {
-            hh: ['x.x.', 'x.x.', 'x.x.', 'x.x.'],
-            sd: ['....', 'x...', '....', 'x...'],
-            bd: ['x...', '....', 'x...', 'xxx'],
-            feet: ['R...', '....', 'R...', 'RLR'],
-          },
-        ],
+        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'snare',
+        title: 'パラディドル (スネア)',
+        intent: '各グループの頭にアクセント',
       },
       {
-        category: 'groove',
-        title: 'キックが1小節3連 (L2: 3:2)',
-        intent: 'ハイハット8分の下で、キックが3連を続ける',
-        bars: [
-          {
-            hh: ['x.x.', 'x.x.', 'x.x.', 'x.x.'],
-            sd: ['....', 'x...', '....', 'x...'],
-            bd: ['xxx', 'xxx', 'xxx', 'xxx'],
-            feet: ['RLR', 'LRL', 'RLR', 'LRL'],
-          },
-        ],
+        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'right-tom',
+        title: 'パラディドル: 右手をタムへ',
+        intent: 'R はタム1、L はスネア。手順は同じで音色だけ変わる',
       },
       {
-        category: 'drill',
-        title: 'スネア3連 (休符入り)',
-        intent: '1小節目は3連のみ、2小節目は休符を含む3連 (x.x / xx. / .xx)',
-        repeat: true,
-        bars: [
-          { sd: ['xxx', 'xxx', 'xxx', 'xxx'], hands: ['RLR', 'LRL', 'RLR', 'LRL'] },
-          { sd: ['x.x', 'xx.', '.xx', 'xxx'], hands: ['R.L', 'RL.', '.LR', 'LRL'] },
-        ],
+        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'around',
+        title: 'パラディドル: タム回し',
+        intent: '1拍ごとにスネア → タム1 → タム2 → フロアタム',
+      },
+      {
+        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'doubles-kick',
+        title: 'パラディドル: ダブルをキックへ',
+        intent: 'RR / LL の部分をキック (ツインペダル R L) に置き換える',
+      },
+    ],
+  },
+  {
+    title: '変則: キック',
+    items: [
+      {
+        use: 'perturb', category: 'groove', groove: '8beat', lane: 'bd', cell: 'T', sticking: 'alternate',
+        title: 'キックだけ3連 (1拍 → 1小節)',
+        intent: '4拍目 → 3拍目 → 2拍目 → 1拍目の1拍だけ3連、最後に1小節ずっと3連 (3:2)',
+      },
+      {
+        use: 'perturb', category: 'groove', groove: '8beat', lane: 'bd', cell: 'D',
+        title: 'キックの付点8分 (x..x)',
+        intent: '1拍だけキックが付点8分+16分。ウラの16分を食い気味にしない',
+      },
+      {
+        use: 'perturb', category: 'technique', groove: '16beat', lane: 'bd', cell: 'S', sticking: 'alternate',
+        title: '16ビート + キック16分 (ツインペダル)',
+        intent: '1拍ずつキックを16分にする。手の16分とずれないように',
+      },
+    ],
+  },
+  {
+    title: '変則: スネア',
+    items: [
+      {
+        use: 'perturb', category: 'groove', groove: '8beat', lane: 'sd', cell: '...x', merge: true,
+        title: 'スネアの16分ウラ',
+        intent: '1拍だけ、拍の最後の16分にスネアが足される。2・4拍のバックビートは残す',
+      },
+      {
+        use: 'perturb', category: 'groove', groove: '8beat', lane: 'sd', cell: 'T', sticking: 'alternate',
+        title: 'スネア3連 (両手)',
+        intent: '1拍だけ両手でスネア3連。ハイハットは休む',
       },
     ],
   },
