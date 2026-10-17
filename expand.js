@@ -357,7 +357,165 @@
     return { bars: out, repeat, repeatEach };
   }
 
-  const GENERATORS = { progression, positions, perturb, accents, sticking, fills, skeleton, hihatOpen, literal };
+
+  // --- Fill reading set (REVIEW 4拍目フィル譜読みセット) ----------------------------
+
+  // Drum moves along snare -> high tom -> mid tom -> floor tom: stay, step to the next
+  // drum, or go back to the snare. No jumps, no backward steps.
+  function drumMoves(from) {
+    const i = AROUND.indexOf(from);
+    const moves = [from];
+    if (i < AROUND.length - 1) moves.push(AROUND[i + 1]);
+    if (from !== 'sd') moves.push('sd');
+    return moves;
+  }
+
+  // Every drum path of `length` strokes that follows the rule (any starting drum).
+  function drumPaths(length) {
+    let paths = AROUND.map((d) => [d]);
+    for (let n = 1; n < length; n++) {
+      paths = paths.flatMap((p) => drumMoves(p[p.length - 1]).map((d) => [...p, d]));
+    }
+    return paths;
+  }
+
+  // Fixed-seed shuffle: the order looks varied but is the same every time (D5).
+  function seededShuffle(list, seed) {
+    let a = seed >>> 0;
+    const next = () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(next() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
+  // Days since 2026-01-01 in local time: the same set all day, a new set at midnight.
+  function dayNumber(date = new Date()) {
+    const local = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    return Math.floor((local - Date.UTC(2026, 0, 1)) / 86400000);
+  }
+
+  // Index sets of `count` strokes out of `n` (which strokes the kick takes over).
+  function choose(n, count) {
+    if (count === 0) return [[]];
+    const out = [];
+    for (let i = 0; i < n; i++) choose(n, count - 1).forEach((rest) => { if (!rest.length || rest[0] > i) out.push([i, ...rest]); });
+    return out;
+  }
+
+  // All one-beat fills for a cell: drum path x kick positions. The hands keep their
+  // grid sticking; a stroke given to the kick is played by the foot on the same side.
+  // At least one hand note must be on a tom (all-snare fills are the 4拍目フィル item).
+  function fillVariants(cell, kicks) {
+    const cellGrid = grid(cell);
+    const onsets = [...cellGrid].map((c, i) => (c === '.' ? -1 : i)).filter((i) => i >= 0);
+    const seen = new Set();
+    const variants = [];
+    for (const path of drumPaths(onsets.length)) {
+      for (const kickIdx of choose(onsets.length, kicks)) {
+        if (kickIdx.length >= onsets.length) continue;
+        const notes = onsets.map((slot, k) => ({ slot, lane: kickIdx.includes(k) ? 'bd' : path[k] }));
+        if (!notes.some((n) => n.lane !== 'sd' && n.lane !== 'bd')) continue;
+        const key = notes.map((n) => n.lane).join(' ');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        variants.push({ cellGrid, notes });
+      }
+    }
+    return variants;
+  }
+
+  // Write one fill beat into a bar: hand lanes and kick are cleared on that beat first.
+  function placeFill(bar, beat, { cellGrid, notes }, lead) {
+    const len = cellGrid.length;
+    for (const lane of [...HAND_LANES, ...FOOT_LANES]) {
+      if (bar[lane]) bar[lane][beat] = empty(len);
+    }
+    const handSticking = gridSticking([cellGrid], lead, 16)[0];
+    const hands = [...empty(len)];
+    const feet = [...empty(len)];
+    for (const { slot, lane } of notes) {
+      const grids = ensureLane(bar, lane);
+      grids[beat] = (grids[beat].length === len ? grids[beat] : empty(len));
+      grids[beat] = grids[beat].slice(0, slot) + 'x' + grids[beat].slice(slot + 1);
+      (lane === 'bd' ? feet : hands)[slot] = handSticking[slot];
+    }
+    ensureLane(bar, 'hands')[beat] = hands.join('');
+    if (feet.some((f) => f !== '.')) ensureLane(bar, 'feet')[beat] = feet.join('');
+  }
+
+  // Today's bars: one per cell, each cell walking through its own shuffled list, so
+  // every day has every rhythm and the drum moves rotate (REVIEW: 日替わり).
+  // `full` = a full-bar fill (unit 2), one cell over all four beats, with the drum
+  // path running on across beats.
+  function fillReading({ cells, kicks = 0, full = false, perDay, day, lead }) {
+    const today = day ?? dayNumber();
+    const bars = [];
+    let cycle = 0;
+    let total = 0;
+    if (!full) {
+      cells.forEach((cell, c) => {
+        const variants = seededShuffle([].concat(kicks).flatMap((k) => fillVariants(cell, k)), 1009 * (c + 1) + 31 * [].concat(kicks)[0]);
+        cycle = Math.max(cycle, variants.length);
+        total += variants.length;
+        const bar = withCrash(groove('8beat'));
+        bar.hands = Array(4).fill('....');
+        placeFill(bar, 3, variants[today % variants.length], lead);
+        bars.push(bar);
+      });
+      return { bars, repeatEach: true, note: `全${total}通り、${cycle}日で一巡` };
+    }
+    // Full bar: `perDay` cells a day, rotating through the list; the drum path is one
+    // walk over all strokes of the bar, so it also moves inside a beat.
+    const start = (today * perDay) % cells.length;
+    for (let u = 0; u < perDay; u++) {
+      const cell = cells[(start + u) % cells.length];
+      const cellGrid = grid(cell);
+      const onsets = [...cellGrid].map((c, i) => (c === '.' ? -1 : i)).filter((i) => i >= 0);
+      const path = walkPath(onsets.length * 4, today * 101 + u * 7 + 1);
+      const bar = groove('8beat');
+      bar.hands = Array(4).fill('....');
+      for (let beat = 0; beat < 4; beat++) {
+        const notes = onsets.map((slot, k) => ({ slot, lane: path[beat * onsets.length + k] }));
+        placeFill(bar, beat, { cellGrid, notes }, lead);
+      }
+      bars.push(withCrash(groove('8beat')), bar);
+    }
+    return { bars, repeatGroup: 2, note: `リズムは${Math.ceil(cells.length / perDay)}日で一巡、太鼓の動きは毎日変わる` };
+  }
+
+  // A drum path of `length` strokes following the move rule, chosen from `seed`.
+  // Starts on the snare or the high tom; stays are kept short so the fill travels.
+  function walkPath(length, seed) {
+    let a = seed >>> 0;
+    const rand = () => {
+      a = (Math.imul(a ^ (a >>> 16), 0x45d9f3b) + 0x9e3779b9) >>> 0;
+      return (a >>> 8) / 16777216;
+    };
+    const path = [rand() < 0.5 ? 'sd' : 't1'];
+    let run = 1;
+    while (path.length < length) {
+      const here = path[path.length - 1];
+      const moves = drumMoves(here).filter((d) => !(d === here && run >= 3));
+      const weights = moves.map((d) => (d === here ? 3 : d === 'sd' ? 1 : 4));
+      let r = rand() * weights.reduce((x, y) => x + y, 0);
+      let pick = moves[moves.length - 1];
+      for (let i = 0; i < moves.length; i++) { r -= weights[i]; if (r < 0) { pick = moves[i]; break; } }
+      run = pick === here ? run + 1 : 1;
+      path.push(pick);
+    }
+    return path;
+  }
+
+  const GENERATORS = { progression, positions, perturb, accents, sticking, fills, skeleton, hihatOpen, literal, fillReading };
 
   // --- Stroke marks ---------------------------------------------------------
 
@@ -436,7 +594,9 @@
       title += lead === 'R' ? ' — R リード' : ` — L リード${hasHiHat ? '(左手ハイハット)' : ''}`;
     }
     result.bars.forEach(alignSlots);
-    const item = { category: spec.category, title, intent: spec.intent, times: spec.times || DEFAULT_TIMES, ...result };
+    const { note, ...rest } = result;
+    const intent = note ? `${spec.intent}。${note}` : spec.intent;
+    const item = { category: spec.category, title, intent, times: spec.times || DEFAULT_TIMES, ...rest };
     addStrokes(item);
     markCloses(item);
     return item;
@@ -474,7 +634,7 @@
     }));
   }
 
-  const api = { CELLS, GROOVES, expandItem, expandAll, gridSticking };
+  const api = { CELLS, GROOVES, expandItem, expandAll, gridSticking, dayNumber, fillVariants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DrumExpand = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -117,6 +117,31 @@ window.ROUTINE_SPECS = [
     ],
   },
   {
+    title: 'フィルの譜読み (日替わり)',
+    items: [
+      {
+        use: 'fillReading', category: 'fill', cells: FILL_CELLS, kicks: 0, times: 4,
+        title: '段階1: 4拍目フィル、手だけ',
+        intent: '1拍目クラッシュ + 8ビート + 4拍目フィル。太鼓はスネア → ハイ → ミッド → フロアの順に「留まる / 次へ / スネアに戻る」だけで動く',
+      },
+      {
+        use: 'fillReading', category: 'fill', cells: FILL_CELLS, kicks: 1, times: 4,
+        title: '段階2: 4拍目フィル + キック1回',
+        intent: '手の1打をキックに置き換える。手の動きはそのままで、置き換えた手と同じ側の足で踏む',
+      },
+      {
+        use: 'fillReading', category: 'fill', cells: ['S', 'SE', 'ES', 'xx.x', '.xxx', 'T'], kicks: [2, 3], times: 4,
+        title: '段階3: 4拍目フィル + キック2〜3回',
+        intent: '手の2〜3打をキックに置き換える。手が最低1打は残るセルだけ',
+      },
+      {
+        use: 'fillReading', category: 'fill', cells: FILL_CELLS, full: true, perDay: 4, times: 4,
+        title: '段階4: 1小節ぎっしりのフィル',
+        intent: '8ビート1小節 + フィル1小節。同じルールで、1拍の中でも太鼓が移動する',
+      },
+    ],
+  },
+  {
     title: '3連',
     items: [
       {

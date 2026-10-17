@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { expandAll } = require('../expand.js');
+const { expandAll, expandItem } = require('../expand.js');
 
 const ROOT = path.join(__dirname, '..');
 const HAND_LANES = ['cr', 'rd', 'hh', 't1', 't2', 'sd', 'ft'];
@@ -45,7 +45,8 @@ function checkBar(bar) {
   return errors;
 }
 
-const routines = expandAll(load('routines.js', 'ROUTINE_SPECS')).concat(load('test-routines.js', 'TEST_ROUTINES'));
+const specs = load('routines.js', 'ROUTINE_SPECS');
+const routines = expandAll(specs).concat(load('test-routines.js', 'TEST_ROUTINES'));
 const print = process.argv.includes('--print');
 let failures = 0;
 
@@ -66,6 +67,22 @@ for (const routine of routines) {
       });
     }
   }
+}
+
+// Daily sets change with the date: check a year of days, both leads.
+const DAYS = 366;
+for (const spec of specs.flatMap((r) => r.items).filter((s) => s.use === 'fillReading')) {
+  let problems = 0;
+  for (let day = 0; day < DAYS; day++) {
+    for (const lead of spec.leads || ['R', 'L']) {
+      const item = expandItem({ ...spec, day }, lead);
+      item.bars.forEach((bar, i) => checkBar(bar).forEach((e) => {
+        if (problems++ < 5) console.log(`        ! day ${day} ${lead} bar ${i + 1}: ${e}`);
+      }));
+    }
+  }
+  failures += problems;
+  console.log(`  ${problems ? 'NG' : 'ok'}  daily: ${spec.title} — ${DAYS} days`);
 }
 
 console.log(failures ? `\n${failures} problem(s)` : '\nall ok');

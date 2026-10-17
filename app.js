@@ -37,6 +37,7 @@
   const HANDS_OFFSET = 85;
   const STROKE_GAP = 17; // stroke marks (↑ ↓) below the hand sticking row
   const FEET_OFFSET = 70;
+  const FEET_ROW_EXTRA = 30; // more room under rows with foot sticking, so it does not run into the next row
   const REPEAT_LABEL_WIDTH = 34; // room right of the bar for "×4"
   const ABOVE = VF.Modifier.Position.ABOVE;
   const BELOW = VF.Modifier.Position.BELOW;
@@ -221,9 +222,10 @@
     const barsPerRow = Math.min(logicalWidth >= 700 ? 2 : 1, item.bars.length);
     const barWidth = Math.floor(logicalWidth / barsPerRow);
     const rows = Math.ceil(item.bars.length / barsPerRow);
+    const rowHeight = ROW_HEIGHT + (item.bars.some((bar) => bar.feet) ? FEET_ROW_EXTRA : 0);
 
     const renderer = new VF.Renderer(container, VF.Renderer.Backends.SVG);
-    renderer.resize(width, rows * ROW_HEIGHT * SCALE);
+    renderer.resize(width, rows * rowHeight * SCALE);
     const ctx = renderer.getContext();
     ctx.scale(SCALE, SCALE);
 
@@ -237,7 +239,7 @@
       const begins = group ? i % group === 0 : item.repeat && i === 0;
       const ends = group ? i % group === group - 1 : item.repeat && i === last;
       const labelSpace = group && ends ? REPEAT_LABEL_WIDTH : 0;
-      const stave = new VF.Stave(col * barWidth, row * ROW_HEIGHT + STAVE_TOP, barWidth - 1 - labelSpace);
+      const stave = new VF.Stave(col * barWidth, row * rowHeight + STAVE_TOP, barWidth - 1 - labelSpace);
       if (col === 0) stave.addClef('percussion');
       if (i === 0) stave.addTimeSignature('4/4');
       if (begins) stave.setBegBarType(VF.Barline.type.REPEAT_BEGIN);
