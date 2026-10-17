@@ -263,9 +263,77 @@
     items: document.getElementById('items'),
     prev: document.getElementById('prev'),
     next: document.getElementById('next'),
+    fav: document.getElementById('fav'),
+    toc: document.getElementById('toc'),
+    tocList: document.getElementById('toc-list'),
+    tocClose: document.getElementById('toc-close'),
   };
   let index = Math.min(Math.max(parseInt(location.hash.slice(1), 10) - 1 || 0, 0), Math.max(routines.length - 1, 0));
   let renderedWidth = 0;
+
+  // Favorites live in this browser's localStorage, keyed by routine title so they
+  // survive reordering. Storage can be unavailable (private mode), so fail quietly.
+  const FAV_KEY = 'drums-routine:favorites';
+  let favorites = new Set();
+  try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY)) || []); } catch (e) { /* none */ }
+
+  function toggleFavorite(title) {
+    if (favorites.has(title)) favorites.delete(title);
+    else favorites.add(title);
+    try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch (e) { /* not saved */ }
+    updateFavButton();
+    if (!els.toc.hidden) renderToc();
+  }
+
+  function updateFavButton() {
+    const on = favorites.has(routines[index].title);
+    els.fav.textContent = on ? '★' : '☆';
+    els.fav.classList.toggle('on', on);
+  }
+
+  // Table of contents: favorites first, then every routine in order.
+  function renderToc() {
+    els.tocList.innerHTML = '';
+    const entry = (routine, i) => {
+      const li = document.createElement('li');
+      li.className = i === index ? 'entry current' : 'entry';
+      const go = document.createElement('button');
+      go.className = 'toc-go';
+      const num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = i + 1;
+      go.append(num, routine.title);
+      go.addEventListener('click', () => { closeToc(); jump(i); });
+      const star = document.createElement('button');
+      const on = favorites.has(routine.title);
+      star.className = on ? 'toc-fav on' : 'toc-fav';
+      star.textContent = on ? '★' : '☆';
+      star.setAttribute('aria-label', 'お気に入り');
+      star.addEventListener('click', () => toggleFavorite(routine.title));
+      li.append(go, star);
+      return li;
+    };
+    const group = (label) => {
+      const li = document.createElement('li');
+      li.className = 'group';
+      li.textContent = label;
+      return li;
+    };
+    const favs = routines.map((r, i) => [r, i]).filter(([r]) => favorites.has(r.title));
+    if (favs.length) {
+      els.tocList.append(group('お気に入り'), ...favs.map(([r, i]) => entry(r, i)));
+    }
+    els.tocList.append(group('すべて'), ...routines.map(entry));
+  }
+
+  function openToc() {
+    renderToc();
+    els.toc.hidden = false;
+    const current = els.tocList.querySelector('.entry.current');
+    if (current) current.scrollIntoView({ block: 'center' });
+  }
+
+  function closeToc() { els.toc.hidden = true; }
 
   function render() {
     const routine = routines[index];
@@ -275,6 +343,7 @@
     els.prev.disabled = index === 0;
     els.next.disabled = index === routines.length - 1;
     els.items.innerHTML = '';
+    updateFavButton();
 
     routine.items.forEach((item, k) => {
       const section = document.createElement('section');
@@ -305,8 +374,11 @@
   }
 
   function go(delta) {
-    const target = index + delta;
-    if (target < 0 || target >= routines.length) return;
+    jump(index + delta);
+  }
+
+  function jump(target) {
+    if (target < 0 || target >= routines.length || target === index) return;
     index = target;
     history.replaceState(null, '', `#${index + 1}`);
     render();
@@ -315,13 +387,20 @@
 
   els.prev.addEventListener('click', () => go(-1));
   els.next.addEventListener('click', () => go(1));
+  els.fav.addEventListener('click', () => toggleFavorite(routines[index].title));
+  els.title.addEventListener('click', openToc);
+  els.tocClose.addEventListener('click', closeToc);
+  els.toc.addEventListener('click', (e) => { if (e.target === els.toc) closeToc(); });
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeToc();
+    if (!els.toc.hidden) return;
     if (e.key === 'ArrowRight') go(1);
     if (e.key === 'ArrowLeft') go(-1);
   });
 
   let touchStart = null;
   document.addEventListener('touchstart', (e) => {
+    if (!els.toc.hidden) return;
     const t = e.changedTouches[0];
     touchStart = { x: t.clientX, y: t.clientY };
   }, { passive: true });

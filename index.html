@@ -11,11 +11,21 @@
 <body>
   <header>
     <button id="prev" aria-label="前のルーティン">‹</button>
-    <h1 id="routine-title"></h1>
+    <h1><button id="routine-title" aria-label="目次を開く"></button></h1>
     <span id="counter"></span>
+    <button id="fav" aria-label="お気に入り">☆</button>
     <button id="next" aria-label="次のルーティン">›</button>
   </header>
   <main id="items"></main>
+  <div id="toc" hidden>
+    <nav>
+      <div class="toc-head">
+        <span>目次</span>
+        <button id="toc-close" aria-label="閉じる">×</button>
+      </div>
+      <ol id="toc-list"></ol>
+    </nav>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
   <script src="expand.js"></script>
