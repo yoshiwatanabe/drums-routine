@@ -2,7 +2,8 @@
 //
 // Grid notation (PRD §5): each bar has one string per lane per beat.
 //   4 chars = straight 16th grid, 3 chars = 8th-note triplet.
-//   x = hit, X = accent, g = ghost, o = open hi-hat, . = nothing
+//   x = hit, X = accent, g = ghost, o = open hi-hat, c = hi-hat closing after an open
+//   (+), . = nothing
 // Sticking lanes (hands / feet) use the same grid shape with R / L.
 (() => {
   const VF = Vex.Flow;
@@ -10,14 +11,16 @@
   const LANES = {
     cr: { key: 'a/5/x2', line: 5.5 },
     hh: { key: 'g/5/x2', line: 5 },
+    rd: { key: 'f/5/x2', line: 4.5 },
     t1: { key: 'e/5', line: 4 },
     t2: { key: 'd/5', line: 3.5 },
     sd: { key: 'c/5', line: 3 },
     ft: { key: 'a/4', line: 2 },
     bd: { key: 'f/4', line: 1 },
+    hf: { key: 'd/4/x2', line: 0 }, // hi-hat pedal
   };
-  const UP_LANES = ['cr', 'hh', 't1', 't2', 'sd', 'ft'];
-  const DOWN_LANES = ['bd'];
+  const UP_LANES = ['cr', 'hh', 'rd', 't1', 't2', 'sd', 'ft'];
+  const DOWN_LANES = ['bd', 'hf'];
   const STRAIGHT = { 1: '16', 2: '8', 3: '8d', 4: 'q' };
   const TRIPLET = { 1: '8', 2: 'q' };
   const CATEGORY = {
@@ -29,9 +32,9 @@
     sticking: 'スティッキング',
   };
   const SCALE = 1.2;
-  const ROW_HEIGHT = 220;
-  const STAVE_TOP = 58; // VexFlow adds 4 lines of space above the staff, so line 0 sits at +40.
-  const HANDS_OFFSET = 70;
+  const ROW_HEIGHT = 235;
+  const STAVE_TOP = 73; // VexFlow adds 4 lines of space above the staff, so line 0 sits at +40.
+  const HANDS_OFFSET = 85;
   const STROKE_GAP = 17; // stroke marks (↑ ↓) below the hand sticking row
   const FEET_OFFSET = 70;
   const REPEAT_LABEL_WIDTH = 34; // room right of the bar for "×4"
@@ -129,6 +132,9 @@
       }
       if (marks.includes('o')) {
         note.addModifier(new VF.Articulation('ah').setPosition(ABOVE), hits.length - 1);
+      }
+      if (marks.includes('c')) {
+        note.addModifier(new VF.Articulation('a+').setPosition(ABOVE), hits.length - 1);
       }
       const hand = sticking[seg.start];
       const stroke = stickingLane === 'hands' ? (bar.strokes || [])[beat]?.[seg.start] : undefined;

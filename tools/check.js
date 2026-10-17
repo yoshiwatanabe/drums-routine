@@ -6,9 +6,10 @@ const vm = require('vm');
 const { expandAll } = require('../expand.js');
 
 const ROOT = path.join(__dirname, '..');
-const HAND_LANES = ['cr', 'hh', 't1', 't2', 'sd', 'ft'];
-const LANES = [...HAND_LANES, 'bd'];
-const STICKINGS = { hands: HAND_LANES, feet: ['bd'] };
+const HAND_LANES = ['cr', 'rd', 'hh', 't1', 't2', 'sd', 'ft'];
+const FOOT_LANES = ['bd', 'hf'];
+const LANES = [...HAND_LANES, ...FOOT_LANES];
+const STICKINGS = { hands: HAND_LANES, feet: FOOT_LANES };
 
 function load(file, name) {
   const sandbox = { window: {} };
@@ -28,7 +29,7 @@ function checkBar(bar) {
       const lengths = new Set(grids.map((g) => g.length));
       if (lengths.size > 1) errors.push(`beat ${beat + 1}: ${stick} voice mixes slot counts (${grids.join(' ')})`);
       for (const g of grids) {
-        if (!/^[xXgo.]{3,4}$/.test(g)) errors.push(`beat ${beat + 1}: bad grid "${g}"`);
+        if (!/^[xXgoc.]{3,4}$/.test(g)) errors.push(`beat ${beat + 1}: bad grid "${g}"`);
       }
       const sticking = bar[stick] && bar[stick][beat];
       if (sticking && grids.length && sticking.length !== grids[0].length) {

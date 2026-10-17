@@ -3,6 +3,30 @@
 // hand (`leads`, default R and L). Cells: Q E S ES SE D T R, or a raw grid.
 // 16th slots for `positions`: beat n starts at 4(n-1); e = +1, & = +2, a = +3.
 const FILL_CELLS = ['E', 'S', 'SE', 'ES', 'D', 'xx.x', '.xxx', 'T'];
+const FOOT_STAGES = ['none', 'hhQuarter', '8beat'];
+
+// One routine per rudiment: snare, right hand to tom, around the toms, doubles to kick.
+function rudiment(name, pattern, leads = ['R'], note = '') {
+  const base = { use: 'sticking', category: 'sticking', pattern, leads };
+  return {
+    title: `ルーディメント: ${name}`,
+    items: [
+      { ...base, orchestration: 'snare', title: `${name} (スネア)`, intent: `${pattern}。各グループの頭にアクセント${note}` },
+      { ...base, orchestration: 'right-tom', title: `${name}: 右手をタムへ`, intent: 'R はハイタム、L はスネア' },
+      { ...base, orchestration: 'around', title: `${name}: タム回し`, intent: '1拍ごとにスネア → タム1 → タム2 → フロア' },
+      { ...base, orchestration: 'doubles-kick', title: `${name}: ダブルをキックへ`, intent: 'RR は右足ダブル、LL は左足ダブル (ツインペダル)' },
+    ],
+  };
+}
+
+// Foot drill: the hand drill cells on the kick, over three accompaniments in a row.
+function footDrill(from, to, subdivision = 16) {
+  return {
+    use: 'progression', category: 'drill', lane: 'bd', from, to, subdivision, stages: FOOT_STAGES, leadLabel: '足',
+    title: `${from} → ${to} (キック)`,
+    intent: '3小節ずつ: 足だけ → ハイハット4分の上 → 8ビートの中。足は左右交互 (ツインペダル)',
+  };
+}
 
 window.ROUTINE_SPECS = [
   {
@@ -28,6 +52,17 @@ window.ROUTINE_SPECS = [
         title: 'キックの8分位置 パート2',
         intent: '基本形に、裏拍 (1& 2& 3& 4&) から2か所を足す全組み合わせ',
       },
+    ],
+  },
+  {
+    title: '足のドリル',
+    items: [
+      footDrill('Q', 'E', 8),
+      footDrill('E', 'S'),
+      footDrill('E', 'SE'),
+      footDrill('E', 'ES'),
+      footDrill('E', 'D'),
+      footDrill('E', 'T'),
     ],
   },
   {
@@ -61,7 +96,7 @@ window.ROUTINE_SPECS = [
       {
         use: 'fills', category: 'fill', beats: 2, cells: FILL_CELLS.map((c) => [c, c]), times: 4,
         title: '3・4拍目フィル パート1 (同じセル)',
-        intent: '2-2 のフィルを2拍に伸ばす。フィルに入るタイミングが1拍早くなる',
+        intent: '4拍目フィルを2拍に伸ばす。フィルに入るタイミングが1拍早くなる',
       },
       {
         use: 'fills', category: 'fill', beats: 2, times: 4,
@@ -73,6 +108,69 @@ window.ROUTINE_SPECS = [
         use: 'fills', category: 'fill', beats: 4, around: true, unit: 2, cells: FILL_CELLS, times: 4,
         title: '1小節タム回し (8種類)',
         intent: '8ビート1小節 + フィル1小節。1拍ごとにスネア → タム1 → タム2 → フロア',
+      },
+      {
+        use: 'fills', category: 'fill', beats: 4, around: true, reverse: true, unit: 2, cells: FILL_CELLS, times: 4,
+        title: '1小節タム逆回り (8種類)',
+        intent: '1拍ごとにフロア → タム2 → タム1 → スネア。低い方から上がっていく',
+      },
+    ],
+  },
+  {
+    title: '3連',
+    items: [
+      {
+        use: 'progression', category: 'drill', lane: 'sd', from: 'E', to: 'T',
+        title: 'E → T (スネア)',
+        intent: '8分 (2つ割り) と3連 (3つ割り) の切り替え。3連は RLR LRL と交互に続く',
+      },
+      {
+        use: 'literal', category: 'drill', repeatEach: true, subdivision: 16,
+        title: '休符入りの3連',
+        intent: '3連の一部を抜く形。手は3連で動かし続け、抜けたところは空振り',
+        bars: [
+          { sd: ['xxx', 'xxx', 'xxx', 'xxx'] },
+          { sd: ['x.x', 'x.x', 'x.x', 'x.x'] },
+          { sd: ['xx.', 'xx.', 'xx.', 'xx.'] },
+          { sd: ['.xx', '.xx', '.xx', '.xx'] },
+          { sd: ['x.x', 'xx.', '.xx', 'xxx'] },
+        ],
+      },
+      {
+        use: 'literal', category: 'groove', repeatEach: true, subdivision: 16,
+        title: '4分3連 (キメ)',
+        intent: '2拍に3つ。スネアとキックを同時に。3・4拍目 → 1・2拍目 → 1小節ずっと',
+        bars: [
+          { hh: ['x.x.', 'x.x.', '...', '...'], sd: ['....', 'x...', 'x.x', '.x.'], bd: ['x...', '....', 'x.x', '.x.'] },
+          { hh: ['...', '...', 'x.x.', 'x.x.'], sd: ['x.x', '.x.', '....', 'x...'], bd: ['x.x', '.x.', 'x.x.', '....'] },
+          { sd: ['x.x', '.x.', 'x.x', '.x.'], bd: ['x.x', '.x.', 'x.x', '.x.'] },
+        ],
+      },
+      {
+        use: 'fills', category: 'fill', beats: 1, cells: ['RLK'], times: 4,
+        title: '手足の3連 R L K (4拍目)',
+        intent: '右手・左手・キックの3連。ロックの定番フィル',
+      },
+      {
+        use: 'fills', category: 'fill', beats: 2, cells: ['RLK'], times: 4,
+        title: '手足の3連 R L K (3・4拍目)',
+        intent: '2拍続ける。キックが3連の最後に来る感覚を保つ',
+      },
+      {
+        use: 'fills', category: 'fill', beats: 4, unit: 2, cells: ['RLK'], times: 4,
+        title: '手足の3連 R L K (1小節、スネア)',
+        intent: '8ビート1小節 + R L K を1小節',
+      },
+      {
+        use: 'fills', category: 'fill', beats: 4, around: true, unit: 2, cells: ['RLK'], times: 4,
+        title: '手足の3連 R L K (1小節、タム回し)',
+        intent: '手の部分を1拍ごとにスネア → タム1 → タム2 → フロア',
+      },
+      {
+        use: 'perturb', category: 'groove', groove: '8beat', lane: 'sd', cell: 'T', showSticking: true,
+        targets: [[2], [1], [0]],
+        title: '3連の位置を動かす',
+        intent: 'フィルらしくない位置 (3拍目 → 2拍目 → 1拍目) に急に3連が入る',
       },
     ],
   },
@@ -94,6 +192,11 @@ window.ROUTINE_SPECS = [
         title: '1拍にアクセント3つ (4通り)',
         intent: 'ノンアクセントの1打を小さく保つ',
       },
+    ],
+  },
+  {
+    title: 'アクセント語彙 (小節をまたぐ形)',
+    items: [
       {
         use: 'literal', category: 'accent', repeat: true, subdivision: 16,
         title: '3つ区切り (3+3+3+3+4)',
@@ -102,34 +205,124 @@ window.ROUTINE_SPECS = [
       },
       {
         use: 'literal', category: 'accent', repeat: true, subdivision: 16,
-        title: '3-3-2',
+        title: '3-3-2 (16分)',
         intent: '2拍ごとに 3+3+2。ポップスのキメでよく出る形',
         bars: [{ sd: ['XxxX', 'xxXx', 'XxxX', 'xxXx'] }],
+      },
+      {
+        use: 'literal', category: 'accent', repeat: true, subdivision: 16,
+        title: '3-3-2 (8分取り)',
+        intent: '1小節で 3+3+2。ロック、ポップスのキメ',
+        bars: [{ sd: ['Xxxx', 'xxXx', 'xxxx', 'Xxxx'] }],
+      },
+      {
+        use: 'literal', category: 'accent', repeat: true, subdivision: 16,
+        title: '3+3+3+3+2+2',
+        intent: '3つ区切りを2つ区切りで締める。フィルの定番',
+        bars: [{ sd: ['XxxX', 'xxXx', 'xXxx', 'XxXx'] }],
+      },
+      {
+        use: 'literal', category: 'accent', repeat: true, subdivision: 16,
+        title: '3つ区切り (2小節で一巡)',
+        intent: '3 × 10 + 2。2小節かけて小節の頭に戻る',
+        bars: [
+          { sd: ['XxxX', 'xxXx', 'xXxx', 'XxxX'] },
+          { sd: ['xxXx', 'xXxx', 'XxxX', 'xxXx'] },
+        ],
+      },
+      {
+        use: 'literal', category: 'accent', repeat: true, subdivision: 16,
+        title: 'ソン・クラーベ 3-2',
+        intent: 'ラテン、ファンク、ポップス。1小節目に3つ、2小節目に2つ',
+        bars: [
+          { sd: ['Xxxx', 'xxXx', 'xxxx', 'Xxxx'] },
+          { sd: ['xxxx', 'Xxxx', 'Xxxx', 'xxxx'] },
+        ],
+      },
+      {
+        use: 'literal', category: 'accent', repeat: true, subdivision: 16,
+        title: 'ソン・クラーベ 2-3',
+        intent: '3-2 の小節を入れ替えた形',
+        bars: [
+          { sd: ['xxxx', 'Xxxx', 'Xxxx', 'xxxx'] },
+          { sd: ['Xxxx', 'xxXx', 'xxxx', 'Xxxx'] },
+        ],
       },
     ],
   },
   {
-    title: 'パラディドル展開',
+    title: 'ゴーストノート',
     items: [
       {
-        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'snare', leads: ['R'],
-        title: 'パラディドル (スネア)',
-        intent: '左右対称の手順なので L 始まりは不要 (2拍ずらすと同じ)',
+        use: 'literal', category: 'drill', repeat: true, subdivision: 16,
+        title: '強弱の2段階 (スネア)',
+        intent: '16分で手を動かし続け、2・4拍の頭だけアクセント、他はすべてゴースト (括弧)',
+        bars: [{ sd: ['gggg', 'Xggg', 'gggg', 'Xggg'] }],
       },
       {
-        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'right-tom', leads: ['R'],
-        title: 'パラディドル: 右手をタムへ',
-        intent: 'R はハイタム、L はスネア。手順は同じで音色だけ変わる',
+        use: 'positions', category: 'groove', lane: 'sd', base: [4, 12], addMark: 'g', singles: [3, 7, 11, 15],
+        title: '8ビート + ゴースト1か所 パート1 (a)',
+        intent: '拍の最後の16分 (a) にゴースト。右手ハイハットならゴーストは左手',
       },
       {
-        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'around', leads: ['R'],
-        title: 'パラディドル: タム回し',
-        intent: '1拍ごとにスネア → タム1 → タム2 → フロア',
+        use: 'positions', category: 'groove', lane: 'sd', base: [4, 12], addMark: 'g', singles: [1, 5, 9, 13], includeBase: false,
+        title: '8ビート + ゴースト1か所 パート2 (e)',
+        intent: '拍の2つ目の16分 (e) にゴースト',
       },
       {
-        use: 'sticking', category: 'sticking', pattern: 'RLRR LRLL', orchestration: 'doubles-kick', leads: ['R'],
-        title: 'パラディドル: ダブルをキックへ',
-        intent: 'RR は右足ダブル、LL は左足ダブル (ツインペダル)',
+        use: 'positions', category: 'groove', lane: 'sd', base: [4, 12], addMark: 'g', includeBase: false,
+        combos: [[3, 5], [11, 13], [3, 11], [5, 13], [3, 13], [7, 15]],
+        title: '8ビート + ゴースト2か所',
+        intent: 'バックビートの直前の a と直後の e など、よく聞く組み合わせ',
+      },
+    ],
+  },
+  {
+    title: 'ハイハットの開閉',
+    items: [
+      {
+        use: 'hihatOpen', category: 'groove', sets: [[2], [6], [10], [14]],
+        title: 'オープン1か所 (裏拍)',
+        intent: '普通の8ビート → 開閉の入った小節。○ で開き、次の + で足で閉じる',
+      },
+      {
+        use: 'hihatOpen', category: 'groove', sets: [[2, 6], [2, 10], [2, 14], [6, 10], [6, 14], [10, 14]],
+        title: 'オープン2か所 (裏拍の組み合わせ)',
+        intent: '2& と 3& なら小節の真ん中で2回開く',
+      },
+      {
+        use: 'hihatOpen', category: 'groove', sets: [[2, 6, 10, 14]],
+        title: '全部の裏拍でオープン (ディスコ)',
+        intent: '表で閉じ、裏で開く',
+      },
+      {
+        use: 'hihatOpen', category: 'groove', sets: [[3], [7], [11], [15]],
+        title: '16分の a でオープン',
+        intent: '短く開いてすぐ閉じる。ファンク、16ビート系',
+      },
+      {
+        use: 'literal', category: 'groove', repeatEach: true,
+        title: 'ライド + 足のハイハット (2・4拍)',
+        intent: 'ライドを刻みながら、足でハイハットを2・4拍に踏む (譜面の下の ×)',
+        bars: [
+          { rd: ['x.x.', 'x.x.', 'x.x.', 'x.x.'], sd: ['....', 'x...', '....', 'x...'], bd: ['x...', '....', 'x...', '....'], hf: ['....', 'x...', '....', 'x...'] },
+          { rd: ['x...', 'x...', 'x...', 'x...'], sd: ['....', 'x...', '....', 'x...'], bd: ['x...', '....', 'x.x.', '....'], hf: ['....', 'x...', '....', 'x...'] },
+        ],
+      },
+    ],
+  },
+  {
+    title: '骨格の変化',
+    items: [
+      {
+        use: 'skeleton', category: 'groove', anchors: ['snare1', 'snare2'],
+        title: 'スネアの骨格',
+        intent: '普通の8ビート → 2拍目か4拍目のスネアを 抜く / 8分前 / 16分前 / 8分後 / 16分後',
+      },
+      {
+        use: 'skeleton', category: 'groove', anchors: ['kick1', 'kick2'],
+        title: 'キックの骨格',
+        intent: '1拍目か3拍目のキックを変える。1拍目の前倒しは前の小節の終わりに入る (食い)',
       },
     ],
   },
@@ -155,4 +348,9 @@ window.ROUTINE_SPECS = [
       },
     ],
   },
+  rudiment('パラディドル', 'RLRR LRLL', ['R'], '。左右対称なので L 始まりは不要'),
+  rudiment('インバーテッド・パラディドル', 'RLLR LRRL', ['R'], '。左右対称なので L 始まりは不要'),
+  rudiment('リバース・パラディドル', 'RRLR LLRL', ['R'], '。左右対称なので L 始まりは不要'),
+  rudiment('ダブル・パラディドル', 'RLRLRR LRLRLL', ['R'], '。6打を3連で取る'),
+  rudiment('パラディドル・ディドル', 'RLRRLL', ['R', 'L'], '。6打を3連で取る'),
 ];
