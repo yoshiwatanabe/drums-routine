@@ -19,7 +19,7 @@ function load(file, name) {
 function checkBar(bar) {
   const errors = [];
   for (const key of Object.keys(bar)) {
-    if (!LANES.includes(key) && !STICKINGS[key]) errors.push(`unknown lane "${key}"`);
+    if (!LANES.includes(key) && !STICKINGS[key] && key !== 'strokes') errors.push(`unknown lane "${key}"`);
     if (!Array.isArray(bar[key]) || bar[key].length !== 4) errors.push(`${key}: needs 4 beats`);
   }
   for (let beat = 0; beat < 4; beat++) {

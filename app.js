@@ -29,9 +29,10 @@
     sticking: 'スティッキング',
   };
   const SCALE = 1.2;
-  const ROW_HEIGHT = 210;
-  const STAVE_TOP = 50; // VexFlow adds 4 lines of space above the staff, so line 0 sits at +40.
-  const HANDS_OFFSET = 62;
+  const ROW_HEIGHT = 220;
+  const STAVE_TOP = 58; // VexFlow adds 4 lines of space above the staff, so line 0 sits at +40.
+  const HANDS_OFFSET = 70;
+  const STROKE_GAP = 17; // stroke marks (↑ ↓) below the hand sticking row
   const FEET_OFFSET = 70;
   const REPEAT_LABEL_WIDTH = 34; // room right of the bar for "×4"
   const ABOVE = VF.Modifier.Position.ABOVE;
@@ -130,7 +131,8 @@
         note.addModifier(new VF.Articulation('ah').setPosition(ABOVE), hits.length - 1);
       }
       const hand = sticking[seg.start];
-      if (hand && hand !== '.') stickings.push({ note, text: hand, above: stem > 0 });
+      const stroke = stickingLane === 'hands' ? (bar.strokes || [])[beat]?.[seg.start] : undefined;
+      if (hand && hand !== '.') stickings.push({ note, text: hand, above: stem > 0, stroke });
       return note;
     });
 
@@ -185,6 +187,24 @@
       const x = (note.getNoteHeadBeginX() + note.getNoteHeadEndX()) / 2;
       ctx.fillText(text, x - ctx.measureText(text).width / 2, above ? handsY : feetY);
     }
+    // Up / down stroke marks sit right under the hand sticking row. Drawn as lines:
+    // arrow glyphs fall back to colour emoji fonts on some browsers.
+    ctx.setLineWidth(1.6);
+    for (const { note, stroke } of stickings) {
+      if (stroke !== '↑' && stroke !== '↓') continue;
+      const x = (note.getNoteHeadBeginX() + note.getNoteHeadEndX()) / 2;
+      const bottom = handsY + STROKE_GAP;
+      const top = bottom - 12;
+      const tip = stroke === '↑' ? top : bottom;
+      const back = stroke === '↑' ? top + 5 : bottom - 5;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.moveTo(x - 4, back);
+      ctx.lineTo(x, tip);
+      ctx.lineTo(x + 4, back);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -201,19 +221,25 @@
     const ctx = renderer.getContext();
     ctx.scale(SCALE, SCALE);
 
+    // Repeat units: every bar (repeatEach), every N bars (repeatGroup), or the whole item.
+    const group = item.repeatEach ? 1 : item.repeatGroup || 0;
+    const last = item.bars.length - 1;
+
     item.bars.forEach((bar, i) => {
       const col = i % barsPerRow;
       const row = Math.floor(i / barsPerRow);
-      const labelSpace = item.repeatEach ? REPEAT_LABEL_WIDTH : 0;
+      const begins = group ? i % group === 0 : item.repeat && i === 0;
+      const ends = group ? i % group === group - 1 : item.repeat && i === last;
+      const labelSpace = group && ends ? REPEAT_LABEL_WIDTH : 0;
       const stave = new VF.Stave(col * barWidth, row * ROW_HEIGHT + STAVE_TOP, barWidth - 1 - labelSpace);
       if (col === 0) stave.addClef('percussion');
       if (i === 0) stave.addTimeSignature('4/4');
-      if ((item.repeat && i === 0) || item.repeatEach) stave.setBegBarType(VF.Barline.type.REPEAT_BEGIN);
-      if ((item.repeat && i === item.bars.length - 1) || item.repeatEach) stave.setEndBarType(VF.Barline.type.REPEAT_END);
+      if (begins) stave.setBegBarType(VF.Barline.type.REPEAT_BEGIN);
+      if (ends) stave.setEndBarType(VF.Barline.type.REPEAT_END);
       stave.setContext(ctx).draw();
       drawBar(ctx, stave, bar);
-      if (item.repeatEach) {
-        const label = `×${item.times || 4}`;
+      if (group && ends) {
+        const label = `×${item.times || 2}`;
         ctx.save();
         ctx.setFont('Arial', 14, 'bold');
         ctx.fillText(label, stave.getX() + stave.getWidth() + 5, stave.getYForLine(2) + 5);

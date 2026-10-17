@@ -1,7 +1,8 @@
-// Expands routine templates into renderable items (PRD D2).
+// Expands routine templates into renderable items (PRD D2, REVIEW.md).
 //
 // A template item names a generator (`use`) plus its parameters; the generator
-// returns { bars, repeat, repeatEach } in the grid notation described in app.js.
+// returns { bars, repeat | repeatEach | repeatGroup } in the grid notation described
+// in app.js. Each template is expanded once per lead hand (`leads`, default R and L).
 // Runs in the browser (window.DrumExpand) and in Node (module.exports) for checks.
 (function (root) {
   'use strict';
@@ -18,6 +19,7 @@
   };
   const HAND_LANES = ['cr', 'hh', 't1', 't2', 'sd', 'ft'];
   const AROUND = ['sd', 't1', 't2', 'ft'];
+  const DEFAULT_TIMES = 2;
 
   const GROOVES = {
     '8beat': {
@@ -41,6 +43,7 @@
 
   const empty = (len) => '.'.repeat(len);
   const clone = (value) => JSON.parse(JSON.stringify(value));
+  const otherHand = (hand) => (hand === 'R' ? 'L' : 'R');
 
   function groove(name) {
     if (!GROOVES[name]) throw new Error(`unknown groove: ${name}`);
@@ -50,6 +53,20 @@
   function ensureLane(bar, lane) {
     if (!bar[lane]) bar[lane] = ['....', '....', '....', '....'];
     return bar[lane];
+  }
+
+  // 16th-slot indices (0-15) -> four beat grids.
+  function fromSlots(slots, mark = 'x') {
+    const chars = Array(16).fill('.');
+    slots.forEach((s) => { chars[s] = mark; });
+    return [0, 1, 2, 3].map((b) => chars.slice(b * 4, b * 4 + 4).join(''));
+  }
+
+  // Groove bar with a crash on 1; the hi-hat comes back on the "and".
+  function withCrash(bar) {
+    ensureLane(bar, 'cr')[0] = 'x...';
+    if (bar.hh) bar.hh[0] = '.' + bar.hh[0].slice(1);
+    return bar;
   }
 
   // Put a cell on one beat of a lane. When a hand lane gets a busy cell (triplet or
@@ -71,15 +88,31 @@
     }
   }
 
-  // Alternating R/L over the hits of the given beats (others left blank).
-  function alternate(grids, beats = [0, 1, 2, 3], lead = 'R') {
-    let hand = lead;
-    return grids.map((g, beat) => [...g].map((c) => {
-      if (c === '.' || !beats.includes(beat)) return '.';
-      const current = hand;
-      hand = hand === 'R' ? 'L' : 'R';
-      return current;
-    }).join(''));
+  // Grid sticking (REVIEW 1-1/1-2): the hands keep alternating on a fixed grid and only
+  // the notes are played, so on-grid positions always fall to the lead hand.
+  //   subdivision 16: slots 0 2 = lead, 1 3 = other (E = R.R., S = RLRL)
+  //   subdivision 8:  slot 0 = lead, slot 2 = other (Q = R, E = RL)
+  // Triplet beats alternate continuously across consecutive triplet beats (RLR LRL).
+  function gridSticking(grids, lead = 'R', subdivision = 16, beats = [0, 1, 2, 3]) {
+    const off = otherHand(lead);
+    let tripletRun = 0;
+    return grids.map((g, beat) => {
+      const active = beats.includes(beat);
+      if (g.length === 3) {
+        const run = tripletRun++;
+        return [...g].map((c, slot) => {
+          if (c === '.' || !active) return '.';
+          return (slot + 3 * run) % 2 === 0 ? lead : off;
+        }).join('');
+      }
+      tripletRun = 0;
+      return [...g].map((c, slot) => {
+        if (c === '.' || !active) return '.';
+        if (subdivision === 8 && slot % 2 === 1) throw new Error('8分グリッドの項目に16分の音がある');
+        const step = subdivision === 8 ? slot / 2 : slot;
+        return step % 2 === 0 ? lead : off;
+      }).join('');
+    });
   }
 
   function stickingKey(lane) {
@@ -88,90 +121,95 @@
 
   // --- Generators -----------------------------------------------------------
 
-  // Progressive overload: start from all `from` cells, bring in `to` one step at a
-  // time, and keep only bars that add a new transition (incl. bar wrap) or put `to`
-  // on a beat it has not been on yet.
-  function progression({ from, to, lane = 'sd', groove: grooveName, sticking }) {
-    const masks = [];
-    for (let m = 0; m < 16; m++) masks.push(m);
+  // Progressive overload: start from all `from` cells and bring in `to`, keeping only
+  // bars that add a new transition (bar wrap included). Rotations of the same bar are
+  // the same exercise when looped, so beat position is not a reason to keep a bar.
+  function progression({ from, to, lane = 'sd', subdivision = 16, lead }) {
     const bits = (m) => [0, 1, 2, 3].map((i) => (m >> (3 - i)) & 1);
     const count = (m) => bits(m).reduce((a, b) => a + b, 0);
-    masks.sort((a, b) => count(a) - count(b) || b - a);
+    const masks = [...Array(16).keys()].sort((a, b) => count(a) - count(b) || b - a);
 
-    const seenTransitions = new Set();
-    const seenPositions = new Set();
+    const seen = new Set();
     const bars = [];
     for (const mask of masks) {
       const cells = bits(mask).map((b) => (b ? to : from));
       const transitions = cells.map((c, i) => `${c}>${cells[(i + 1) % 4]}`);
-      const positions = cells.map((c, i) => (c === to ? i : -1)).filter((i) => i >= 0);
-      const isNew = bars.length === 0
-        || transitions.some((t) => !seenTransitions.has(t))
-        || positions.some((p) => !seenPositions.has(p));
-      if (!isNew) continue;
-      transitions.forEach((t) => seenTransitions.add(t));
-      positions.forEach((p) => seenPositions.add(p));
+      if (bars.length && transitions.every((t) => seen.has(t))) continue;
+      transitions.forEach((t) => seen.add(t));
 
-      const bar = grooveName ? groove(grooveName) : {};
-      cells.forEach((cell, beat) => setBeat(bar, lane, beat, grid(cell)));
-      if (sticking === 'alternate') bar[stickingKey(lane)] = alternate(bar[lane]);
+      const bar = { [lane]: cells.map(grid) };
+      bar[stickingKey(lane)] = gridSticking(bar[lane], lead, subdivision);
       bars.push(bar);
     }
     return { bars, repeatEach: true };
   }
 
-  // Overlay two same-length grids: a hit in either one is kept.
-  function overlay(base, top) {
-    return [...top].map((c, i) => (c !== '.' ? c : base[i])).join('');
+  // One lane laid out from 16th-slot positions over a groove (REVIEW 1-3 / 5-2):
+  // the base bar, base + each single, base + every pair, then any extra bars.
+  function positions({ groove: grooveName = '8beat', lane = 'bd', base = [0, 8], singles = [], pairs = [], extra = [], includeBase = true }) {
+    const make = (slots) => {
+      const bar = groove(grooveName);
+      bar[lane] = fromSlots(slots);
+      return bar;
+    };
+    const bars = includeBase ? [make(base)] : [];
+    singles.forEach((s) => bars.push(make([...base, s])));
+    pairs.forEach((a, i) => pairs.slice(i + 1).forEach((b) => bars.push(make([...base, a, b]))));
+    extra.forEach((slots) => bars.push(make(slots)));
+    return { bars, repeatEach: true };
   }
 
-  // One irregular lane over a real groove (PRD §5.4-2). Order is fixed (D5):
-  // single beat at 4, 3, 2, 1, then the whole bar. With `merge`, the cell is added
-  // on top of the groove's hits instead of replacing them (keeps the backbeat).
-  function perturb({ groove: grooveName, lane, cell, beats = [3, 2, 1, 0], wholeBar = true, merge = false, sticking }) {
+  // One irregular lane over a real groove (PRD §5.4-2). `targets` lists the beats
+  // changed in each bar, in a fixed order (D5). With `merge`, the cell is added on top
+  // of the groove's hits instead of replacing them.
+  function perturb({ groove: grooveName, lane, cell, targets, merge = false, showSticking = false, lead, footLead }) {
     const cellGrid = grid(cell);
-    const targets = beats.map((b) => [b]);
-    if (wholeBar) targets.push([0, 1, 2, 3]);
     const bars = targets.map((targetBeats) => {
       const bar = groove(grooveName);
       targetBeats.forEach((beat) => {
         const current = (bar[lane] || [])[beat];
-        const merged = merge && current && current.length === cellGrid.length ? overlay(current, cellGrid) : cellGrid;
+        const merged = merge && current && current.length === cellGrid.length
+          ? [...cellGrid].map((c, i) => (c !== '.' ? c : current[i])).join('')
+          : cellGrid;
         setBeat(bar, lane, beat, merged);
       });
-      if (sticking === 'alternate') bar[stickingKey(lane)] = alternate(bar[lane], targetBeats);
+      if (showSticking) {
+        bar[stickingKey(lane)] = gridSticking(bar[lane], lane === 'bd' ? footLead : lead, 16, targetBeats);
+      }
       return bar;
     });
     return { bars, repeatEach: true };
   }
 
-  // Repeating one-beat accent shapes with `count` accents (4 / 6 / 4 shapes).
-  function accents({ count, lane = 'sd' }) {
-    const shapes = [];
+  // Repeating one-beat accent shapes with `count` accents (4 / 6 / 4 shapes). Bars are
+  // written out (no repeat signs) so the stroke marks show each change of shape.
+  function accents({ count, lane = 'sd', writeOut = 2, lead }) {
+    const bars = [];
     for (let m = 15; m >= 0; m--) {
       const bits = [0, 1, 2, 3].map((i) => (m >> (3 - i)) & 1);
-      if (bits.reduce((a, b) => a + b, 0) === count) shapes.push(bits.map((b) => (b ? 'X' : 'x')).join(''));
+      if (bits.reduce((a, b) => a + b, 0) !== count) continue;
+      const shape = bits.map((b) => (b ? 'X' : 'x')).join('');
+      for (let k = 0; k < writeOut; k++) {
+        const bar = { [lane]: [shape, shape, shape, shape] };
+        bar.hands = gridSticking(bar[lane], lead, 16);
+        bars.push(bar);
+      }
     }
-    const bars = shapes.map((shape) => ({
-      [lane]: [shape, shape, shape, shape],
-      hands: ['RLRL', 'RLRL', 'RLRL', 'RLRL'],
-    }));
-    return { bars, repeatEach: true };
+    return { bars };
   }
 
-  // A sticking pattern (e.g. paradiddle) voiced on the kit in different ways.
+  // A sticking pattern (rudiment) voiced on the kit in different ways.
   //   snare        all strokes on the snare
   //   right-tom    R on the high tom, L on the snare
   //   around       beat by beat: snare, tom 1, tom 2, floor tom
-  //   doubles-kick double strokes move to the kick (feet alternate)
+  //   doubles-kick double strokes move to the kick, same side foot (RR -> right foot)
   function sticking({ pattern, orchestration = 'snare' }) {
     const groups = pattern.trim().split(/\s+/);
     const seq = groups.join('');
     const groupLen = groups[0].length;
     const bar = {};
-    const hands = ['....', '....', '....', '....'].map((s) => [...s]);
-    const feet = ['....', '....', '....', '....'].map((s) => [...s]);
-    let foot = 'R';
+    const hands = Array.from({ length: 4 }, () => [...'....']);
+    const feet = Array.from({ length: 4 }, () => [...'....']);
 
     for (let i = 0; i < 16; i++) {
       const beat = i >> 2;
@@ -188,73 +226,146 @@
 
       const laneGrids = ensureLane(bar, lane);
       laneGrids[beat] = laneGrids[beat].slice(0, slot) + mark + laneGrids[beat].slice(slot + 1);
-      if (lane === 'bd') {
-        feet[beat][slot] = foot;
-        foot = foot === 'R' ? 'L' : 'R';
-      } else {
-        hands[beat][slot] = hand;
-      }
+      (lane === 'bd' ? feet : hands)[beat][slot] = hand;
     }
     bar.hands = hands.map((s) => s.join(''));
     if (bar.bd) bar.feet = feet.map((s) => s.join(''));
     return { bars: [bar], repeat: true };
   }
 
-  // Groove for three bars, fill on the last `beats` beats of bar 4, crash back on 1.
-  function fill({ groove: grooveName = '8beat', cells, beats, around = false }) {
-    const fillCells = Array.isArray(cells) ? cells : Array(beats).fill(cells);
-    if (fillCells.length !== beats) throw new Error('fill: cells must match beats');
-
-    const first = groove(grooveName);
-    ensureLane(first, 'cr')[0] = 'x...';
-    first.hh[0] = '.' + first.hh[0].slice(1);
-
-    const fillBar = groove(grooveName);
+  // Groove-and-fill bars (REVIEW 2-2 / 2-3 / 2-4). Each entry of `cells` is one fill:
+  // a cell name (repeated over `beats`) or an array of `beats` cells.
+  //   unit 1: one bar = crash on 1 + groove + fill on the last `beats` beats
+  //   unit 2: groove bar (crash on 1) + a full fill bar, repeated as a pair
+  function fills({ groove: grooveName = '8beat', beats, cells, around = false, unit = 1, lead }) {
     const start = 4 - beats;
     const lanes = around ? AROUND.slice(4 - beats) : Array(beats).fill('sd');
-    for (let i = 0; i < beats; i++) {
-      const beat = start + i;
-      for (const lane of [...HAND_LANES, 'bd']) {
-        if (fillBar[lane]) fillBar[lane][beat] = empty(grid(fillCells[i]).length);
+    const bars = [];
+    for (const entry of cells) {
+      const fillCells = Array.isArray(entry) ? entry : Array(beats).fill(entry);
+      if (fillCells.length !== beats) throw new Error('fills: cells must match beats');
+
+      const fillBar = unit === 1 ? withCrash(groove(grooveName)) : groove(grooveName);
+      for (let i = 0; i < beats; i++) {
+        const beat = start + i;
+        const cellGrid = grid(fillCells[i]);
+        for (const lane of [...HAND_LANES, 'bd']) {
+          if (fillBar[lane]) fillBar[lane][beat] = empty(cellGrid.length);
+        }
+        ensureLane(fillBar, lanes[i])[beat] = cellGrid;
       }
-      ensureLane(fillBar, lanes[i])[beat] = grid(fillCells[i]);
+      // One stroke stream across the fill, whichever drum each beat is on.
+      const stream = [0, 1, 2, 3].map((beat) => (beat >= start ? fillBar[lanes[beat - start]][beat] : '....'));
+      fillBar.hands = gridSticking(stream, lead, 16, [0, 1, 2, 3].filter((b) => b >= start));
+
+      if (unit === 2) bars.push(withCrash(groove(grooveName)));
+      bars.push(fillBar);
     }
-    // One stroke stream across the fill, whichever drum each beat is on.
-    const stream = [0, 1, 2, 3].map((beat) => {
-      const lane = beat >= start ? lanes[beat - start] : null;
-      return lane ? fillBar[lane][beat] : '....';
+    return unit === 1 ? { bars, repeatEach: true } : { bars, repeatGroup: 2 };
+  }
+
+  function literal({ bars, repeat = false, repeatEach = false, subdivision, lane = 'sd', lead }) {
+    const out = clone(bars);
+    if (subdivision) out.forEach((bar) => { bar.hands = gridSticking(bar[lane], lead, subdivision); });
+    return { bars: out, repeat, repeatEach };
+  }
+
+  const GENERATORS = { progression, positions, perturb, accents, sticking, fills, literal };
+
+  // --- Stroke marks ---------------------------------------------------------
+
+  // Up / down strokes from accents (REVIEW 3-1): for each hand, compare a stroke with
+  // that hand's next stroke in the loop. Accent -> soft = down (↓, stop low),
+  // soft -> accent = up (↑, lift to prepare). Full and tap strokes are not marked.
+  function loopsOf(item) {
+    const indices = item.bars.map((_, i) => i);
+    if (item.repeatEach) return indices.map((i) => [i]);
+    if (item.repeatGroup) {
+      const loops = [];
+      for (let i = 0; i < indices.length; i += item.repeatGroup) loops.push(indices.slice(i, i + item.repeatGroup));
+      return loops;
+    }
+    return [indices];
+  }
+
+  function addStrokes(item) {
+    const accented = item.bars.some((bar) => HAND_LANES.some((lane) => (bar[lane] || []).some((g) => g.includes('X'))));
+    if (!accented) return;
+    item.bars.forEach((bar) => {
+      if (bar.hands) bar.strokes = bar.hands.map((g) => empty(g.length));
     });
-    fillBar.hands = alternate(stream, [0, 1, 2, 3].filter((b) => b >= start));
 
-    return { bars: [first, groove(grooveName), groove(grooveName), fillBar], repeat: true };
+    for (const loop of loopsOf(item)) {
+      const events = [];
+      for (const index of loop) {
+        const bar = item.bars[index];
+        if (!bar.hands) continue;
+        bar.hands.forEach((g, beat) => [...g].forEach((hand, slot) => {
+          if (hand !== 'R' && hand !== 'L') return;
+          const accent = HAND_LANES.some((lane) => bar[lane] && bar[lane][beat][slot] === 'X');
+          events.push({ bar, beat, slot, hand, accent });
+        }));
+      }
+      for (const hand of ['R', 'L']) {
+        const strokes = events.filter((e) => e.hand === hand);
+        strokes.forEach((e, i) => {
+          const next = strokes[(i + 1) % strokes.length];
+          const mark = e.accent && !next.accent ? '↓' : !e.accent && next.accent ? '↑' : '.';
+          const row = e.bar.strokes[e.beat];
+          e.bar.strokes[e.beat] = row.slice(0, e.slot) + mark + row.slice(e.slot + 1);
+        });
+      }
+    }
   }
 
-  function literal({ bars, repeat = false, repeatEach = false }) {
-    return { bars: clone(bars), repeat, repeatEach };
+  // Empty lanes follow the slot count of the lane that plays on that beat (a lane
+  // created later defaults to a 16th grid even where another lane is in triplets).
+  function alignSlots(bar) {
+    for (const voice of [HAND_LANES, ['bd']]) {
+      for (let beat = 0; beat < 4; beat++) {
+        const lanes = voice.filter((lane) => bar[lane]);
+        const playing = lanes.find((lane) => /[^.]/.test(bar[lane][beat]));
+        if (!playing) continue;
+        const len = bar[playing][beat].length;
+        lanes.forEach((lane) => {
+          if (bar[lane][beat].length !== len && !/[^.]/.test(bar[lane][beat])) bar[lane][beat] = empty(len);
+        });
+      }
+    }
   }
 
-  const GENERATORS = { progression, perturb, accents, sticking, fill, literal };
+  // --- Expansion ------------------------------------------------------------
 
-  function expandItem(spec) {
+  function expandItem(spec, lead = 'R') {
     const generate = GENERATORS[spec.use];
     if (!generate) throw new Error(`unknown generator: ${spec.use}`);
-    return { category: spec.category, title: spec.title, intent: spec.intent, times: spec.times, ...generate(spec) };
+    const result = generate({ ...spec, lead, footLead: lead });
+    const leads = spec.leads || ['R', 'L'];
+    let title = spec.title;
+    if (leads.length > 1) {
+      const hasHiHat = result.bars.some((bar) => bar.hh);
+      title += lead === 'R' ? ' — R リード' : ` — L リード${hasHiHat ? '(左手ハイハット)' : ''}`;
+    }
+    result.bars.forEach(alignSlots);
+    const item = { category: spec.category, title, intent: spec.intent, times: spec.times || DEFAULT_TIMES, ...result };
+    addStrokes(item);
+    return item;
   }
 
   function expandAll(specs) {
     return specs.map((routine) => ({
       title: routine.title,
-      items: routine.items.map((spec) => {
+      items: routine.items.flatMap((spec) => (spec.leads || ['R', 'L']).map((lead) => {
         try {
-          return expandItem(spec);
+          return expandItem(spec, lead);
         } catch (err) {
           return { category: spec.category, title: spec.title, intent: spec.intent, error: err.message, bars: [] };
         }
-      }),
+      })),
     }));
   }
 
-  const api = { CELLS, GROOVES, expandItem, expandAll };
+  const api = { CELLS, GROOVES, expandItem, expandAll, gridSticking };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DrumExpand = api;
 })(typeof window !== 'undefined' ? window : globalThis);
