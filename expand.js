@@ -597,6 +597,8 @@
     const { note, ...rest } = result;
     const intent = note ? `${spec.intent}。${note}` : spec.intent;
     const item = { category: spec.category, title, intent, times: spec.times || DEFAULT_TIMES, ...rest };
+    // L-lead hand items get a visual mark in the app (foot leads do not).
+    if (lead === 'L' && leads.length > 1 && !spec.leadLabel) item.leftHand = true;
     addStrokes(item);
     markCloses(item);
     return item;

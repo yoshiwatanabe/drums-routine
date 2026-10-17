@@ -355,6 +355,13 @@
       category.className = 'category';
       category.textContent = `${k + 1}. ${CATEGORY[item.category] || item.category}`;
       heading.append(category, item.title);
+      if (item.leftHand) {
+        section.classList.add('left-lead');
+        const badge = document.createElement('span');
+        badge.className = 'left-badge';
+        badge.textContent = '🫲 左手スタート';
+        heading.prepend(badge);
+      }
       const intent = document.createElement('p');
       intent.className = 'intent';
       intent.textContent = item.intent || '';
